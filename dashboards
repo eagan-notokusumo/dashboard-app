@@ -289,6 +289,21 @@ def algorithm(n, data):
     if n is None or data is None:
         raise PreventUpdate
     
+    # TODO: see how to combine all of src, nodes, and dest together into a single list
+    df = pd.DataFrame.from_records(data)
+    src = ['Source']
+    nodes = [
+        node for node in df['Specs'].unique()
+    ]
+    dest = df['Tujuan'].unique()
+
+    #TODO: create init_graph NOTE: init_graph is a dict of dicts
+
+    #TODO: use Graph class.
+
+    #TODO: return outputs from dijkstra
+
+
 
     return html.Div(
         [
