@@ -1,0 +1,216 @@
+import base64
+import datetime
+import io
+
+import dash
+from dash import html, Input, Output, State, dcc
+from dash.exceptions import PreventUpdate
+import dash_table
+import plotly.express as px
+
+import pandas as pd
+
+
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+                suppress_callback_exceptions=True)
+
+app.layout = html.Div([ # this code section taken from Dash docs https://dash.plotly.com/dash-core-components/upload
+    html.H1(
+        'Network Optimization Dashboard',
+        style={'textAlign': 'center'}
+    ),
+    html.Hr(),
+    dcc.Upload(
+        id='upload-data',
+        children=html.Div([
+            'Drag and Drop or ',
+            html.A('Select Files')
+        ]),
+        style={
+            'width': '100%',
+            'height': '60px',
+            'lineHeight': '60px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': '10px'
+        },
+        # Allow multiple files to be uploaded
+        multiple=True
+    ),
+    html.Div(id='output-layout', children=[]),
+    html.Div(id='output-div', children=[]),
+])
+
+
+def parse_contents(contents, filename, date):
+    content_type, content_string = contents.split(',')
+
+    decoded = base64.b64decode(content_string)
+    try:
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(
+                io.StringIO(decoded.decode('utf-8')))
+        elif 'xls' in filename:
+            # Assume that the user uploaded an excel file
+            df = pd.read_excel(io.BytesIO(decoded))
+    except Exception as e:
+        print(e)
+        return html.Div([
+            'There was an error processing this file.'
+        ])
+
+    raw = df
+    df['OA'] = df['OA'].replace('\.', '', regex=True).astype(int)
+    df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
+    df['Specs'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan']
+    groups = df.groupby(['Specs','Tujuan','Product_Code']).min().apply(list)
+    df = groups.reset_index()
+
+    children = html.Div(
+        [
+            html.H5(filename),
+            html.H6(datetime.datetime.fromtimestamp(date)),
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id='destination-choice',
+                                clearable=False,
+                                value='BDG1',
+                                options=[
+                                    {'label': i, 'value': i}
+                                    for i in df['Tujuan'].unique()
+                                ],
+                                placeholder='Enter destination'
+                            )
+                        ],
+                        className='two columns'
+                    ),
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id='product-choice',
+                                clearable=False,
+                                value='POCO5',
+                                multi=True,
+                                options=[
+                                    {'label': i, 'value': i}
+                                    for i in df['Product_Code'].unique()
+                                ],
+                                placeholder='Enter product code'
+                            )
+                        ],
+                        className='two columns'
+                    ),
+                    html.Div(
+                        [
+                            html.Button(
+                                id='submit-button',
+                                children='Generate Model'
+                            )
+                        ],
+                        className='two columns'
+                    ),
+                ],
+                className='row'
+            ),
+            dcc.Store(
+                id='stored-data',
+                data=df.to_dict('records')
+            ),
+            # html.Div(
+            #     [
+            #         dash_table.DataTable(
+            #             id='output-table',
+            #             columns=[
+            #                 {'name': i, 'id': i}
+            #                 for i in df.columns()
+            #             ]
+            #         ),
+            #     ]
+            # ),
+            html.Div('Raw Content'),
+            html.Pre(
+                contents[0:200] + '...', 
+                style={
+                    'whiteSpace': 'pre-wrap',
+                    'wordBreak': 'break-all'
+                }
+            ),
+        ]
+    )
+    return children
+
+# TODO: add memory callback based on store mechanisms in dash docs
+
+@app.callback(
+    Output('output-layout', 'children'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
+    State('upload-data', 'last_modified')
+)
+def update_layout(list_of_contents, list_of_names, list_of_dates):
+    if list_of_contents is not None:
+        children = [
+            parse_contents(c, n, d) for c, n, d in
+            zip(list_of_contents, list_of_names, list_of_dates)]
+        return children
+
+# @app.callback(
+#     Output('output-div', 'children'),
+#     Input('submit-button', 'n_clicks'),
+#     State('stored-data', 'data'),
+#     State('destination-choice', 'value'),
+#     State('product-choice', 'value'),
+# )
+# def update_data(n, data, dest, prod):
+#     if n is None:
+#         return dash.no_update
+#     else:
+#         df = pd.DataFrame[data]
+#         unfiltered = df
+#         df['Tujuan'] = df[df['Tujuan'] == dest]
+#         df['Product_Code'] = df[df['Product_Code'] == prod]
+#         return html.Div(
+#             [
+#                 dash_table.DataTable(
+#                     data=df.to_dict('records'),
+#                     columns=[
+#                         {'name': i, 'id': i}
+#                         for i in df.columns
+#                     ],
+#                     page_size=15
+#                 ),
+#                 html.Hr(),
+#                 dash_table.DataTable(
+#                     data=unfiltered.to_dict('records'),
+#                     columns=[{'name': i, 'id': i} for i in unfiltered.columns],
+#                     page_size=15
+#                 ),
+#             ],
+#         )
+
+
+# @app.callback(Output('output-div', 'children'),
+#               Input('submit-button','n_clicks'),
+#               State('stored-data','data'),
+#               State('xaxis-data','value'),
+#               State('yaxis-data', 'value'))
+# def make_graphs(n, data, x_data, y_data):
+#     if n is None:
+#         return dash.no_update
+#     else:
+#         bar_fig = px.bar(data, x=x_data, y=y_data)
+#         # print(data)
+#         return dcc.Graph(figure=bar_fig)
+
+
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
