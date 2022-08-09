@@ -41,8 +41,15 @@ app.layout = html.Div([ # this code section taken from Dash docs https://dash.pl
         # Allow multiple files to be uploaded
         multiple=True
     ),
-    html.Div(id='output-layout', children=[]),
-    html.Div(id='output-div', children=[]),
+    html.Div(
+        id='output-layout',
+    ),
+    # html.Div(
+    #     id='output-algorithm',
+    # ),
+    html.Div(
+        id='output-data', 
+    ),
 ])
 
 
@@ -82,7 +89,7 @@ def parse_contents(contents, filename, date):
                             dcc.Dropdown(
                                 id='destination-choice',
                                 clearable=False,
-                                value='BDG1',
+                                # value='BDG1',
                                 options=[
                                     {'label': i, 'value': i}
                                     for i in df['Tujuan'].unique()
@@ -97,8 +104,8 @@ def parse_contents(contents, filename, date):
                             dcc.Dropdown(
                                 id='product-choice',
                                 clearable=False,
-                                value='POCO5',
-                                multi=True,
+                                # value='POCO5',
+                                # multi=True,
                                 options=[
                                     {'label': i, 'value': i}
                                     for i in df['Product_Code'].unique()
@@ -111,12 +118,20 @@ def parse_contents(contents, filename, date):
                     html.Div(
                         [
                             html.Button(
-                                id='submit-button',
-                                children='Generate Model'
+                                id='data-button',
+                                children='Generate data'
                             )
                         ],
                         className='two columns'
                     ),
+                    html.Div(
+                        [
+                            html.Button(
+                                id='algorithm-button',
+                                children='Generate model'
+                            )
+                        ]
+                    )
                 ],
                 className='row'
             ),
@@ -124,17 +139,9 @@ def parse_contents(contents, filename, date):
                 id='stored-data',
                 data=df.to_dict('records')
             ),
-            # html.Div(
-            #     [
-            #         dash_table.DataTable(
-            #             id='output-table',
-            #             columns=[
-            #                 {'name': i, 'id': i}
-            #                 for i in df.columns()
-            #             ]
-            #         ),
-            #     ]
-            # ),
+            html.Div(
+                id='output-table'
+            ),
             html.Div('Raw Content'),
             html.Pre(
                 contents[0:200] + '...', 
@@ -162,55 +169,53 @@ def update_layout(list_of_contents, list_of_names, list_of_dates):
             zip(list_of_contents, list_of_names, list_of_dates)]
         return children
 
+# TODO: consider inputs of destination choice and product choice instead of generate data
+# TODO: generate data only gets triggered once. Fix in future iterations
+@app.callback(
+    Output('output-data', 'children'),
+    Input('data-button', 'n_clicks'),
+    State('stored-data', 'data'),
+    State('destination-choice', 'value'),
+    State('product-choice', 'value'),
+)
+def update_data(n, data, dest, prod):
+    # print(dest)
+    # print(type(dest))
+    # print(type(prod))
+    # print(prod)
+    # print(data)
+    if n is None or data is None:
+        raise PreventUpdate
+    
+    df = pd.DataFrame.from_records(data)
+    df = df[df['Tujuan'] == dest]
+    df = df[df['Product_Code'] == prod]
+    records = df.to_dict('records')
+    # print(df)
+    return html.Div(
+        [
+            dash_table.DataTable(
+                id='output-table',
+                data=records,
+                columns=[
+                    {'name': i, 'id': i}
+                    for i in df.columns
+                ]
+            ),
+            dcc.Store(
+                id='filtered-data',
+                data=records
+            ),
+        ]
+    )
+
 # @app.callback(
-#     Output('output-div', 'children'),
-#     Input('submit-button', 'n_clicks'),
-#     State('stored-data', 'data'),
-#     State('destination-choice', 'value'),
-#     State('product-choice', 'value'),
+#     Output('output-algorithm', 'children'),
+#     Input('algorithm-button', 'n_clicks'),
+#     State('filtered-data', 'data')
 # )
-# def update_data(n, data, dest, prod):
-#     if n is None:
-#         return dash.no_update
-#     else:
-#         df = pd.DataFrame[data]
-#         unfiltered = df
-#         df['Tujuan'] = df[df['Tujuan'] == dest]
-#         df['Product_Code'] = df[df['Product_Code'] == prod]
-#         return html.Div(
-#             [
-#                 dash_table.DataTable(
-#                     data=df.to_dict('records'),
-#                     columns=[
-#                         {'name': i, 'id': i}
-#                         for i in df.columns
-#                     ],
-#                     page_size=15
-#                 ),
-#                 html.Hr(),
-#                 dash_table.DataTable(
-#                     data=unfiltered.to_dict('records'),
-#                     columns=[{'name': i, 'id': i} for i in unfiltered.columns],
-#                     page_size=15
-#                 ),
-#             ],
-#         )
-
-
-# @app.callback(Output('output-div', 'children'),
-#               Input('submit-button','n_clicks'),
-#               State('stored-data','data'),
-#               State('xaxis-data','value'),
-#               State('yaxis-data', 'value'))
-# def make_graphs(n, data, x_data, y_data):
-#     if n is None:
-#         return dash.no_update
-#     else:
-#         bar_fig = px.bar(data, x=x_data, y=y_data)
-#         # print(data)
-#         return dcc.Graph(figure=bar_fig)
-
-
+# def algorithm(n, data):
+#     return
 
 if __name__ == '__main__':
     app.run_server(debug=True)
