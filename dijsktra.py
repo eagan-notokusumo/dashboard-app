@@ -68,15 +68,15 @@ def dijkstraAlgorithm(graph, startNode):
             if tentativeValue < shortestPath[neighbor]:
                 shortestPath[neighbor] = tentativeValue # store all routes if possible?
                 previousNodes[neighbor] = currentMinNode
-                storagePath.append(shortestPath[neighbor])
-                storagePrevious.append(previousNodes[neighbor])
+                # storagePath.append(shortestPath[neighbor])
+                # storagePrevious.append(previousNodes[neighbor])
 
         unvisitedNodes.remove(currentMinNode)
     
-    print(storagePath)
-    print(storagePrevious)
-    print(shortestPath)
-    print(previousNodes)
+    # print(storagePath)
+    # print(storagePrevious)
+    # print(shortestPath)
+    # print(previousNodes)
     return previousNodes, shortestPath
 
 def printResults(previousNodes, shortestPath, startNode, targetNode):
@@ -136,14 +136,14 @@ initGraph['3082MI']['BDG1'] = 48889
 initGraph['3082MJ']['BDG1'] = 55000
 initGraph['3082MK']['BDG1'] = 58000
 initGraph['3082ML']['BDG1'] = 60000
-
+print(initGraph)
 
 
 
 graph = Graph(nodes, initGraph)
-G = nx.DiGraph()
-G.add_nodes_from(nodes)
-G.add_weighted_edges_from(edges)
+# G = nx.DiGraph()
+# G.add_nodes_from(nodes)
+# G.add_weighted_edges_from(edges)
 
 
 # pos = nx.nx_pydot.graphviz_layout(G)
@@ -156,7 +156,7 @@ G.add_weighted_edges_from(edges)
 # nx.draw(G, pos, with_labels=True, font_weight='bold')
 # plt.show()
 
-previousNodes, shortestPath = dijkstraAlgorithm(graph=graph, startNode='Source')
+# previousNodes, shortestPath = dijkstraAlgorithm(graph=graph, startNode='Source')
 
-printResults(previousNodes,shortestPath, startNode='Source', targetNode='BDG1')
+# printResults(previousNodes,shortestPath, startNode='Source', targetNode='BDG1')
 #TODO: check runtime

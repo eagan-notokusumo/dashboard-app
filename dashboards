@@ -7,9 +7,77 @@ from dash import html, Input, Output, State, dcc
 from dash.exceptions import PreventUpdate
 import dash_table
 import plotly.express as px
+import dash_cytoscape as cyto
 
 import pandas as pd
+import numpy as np
+import sys
 
+class Graph(object):
+    def __init__(self, nodes, init_graph):
+        self.nodes = nodes
+        self.graph = self.construct_graph(nodes, init_graph)
+
+    def construct_graph(self, nodes, init_graph):
+        graph = {}
+
+        for node in nodes:
+            graph[node] = {}
+
+        graph.update(init_graph)
+        for node, edge in graph.items():
+            for adjacent_node, value in edge.items():
+                if graph[adjacent_node].get(node, False) == False:
+                    graph[adjacent_node] = value
+
+        return graph
+
+    def get_nodes(self):
+        return self.nodes
+
+    def get_outgoing_edges(self, node):
+        connections = []
+        for out_node in self.nodes:
+            if self.graph[node].get(out_node, False) != False:
+                connections.append(node)
+            
+        return connections
+
+    def value(self, node1, node2):
+        return self.graph[node1][node2]
+
+def dijkstra_algorithm(graph, start_node):
+    univisited_nodes = list(graph.get_nodes())
+
+    shortest_path = {}
+    previous_nodes = {}
+    max_value = sys.maxsize
+
+    for node in univisited_nodes:
+        shortest_path[node] = max_value
+    
+    shortest_path[start_node] = 0
+
+    while univisited_nodes:
+        current_min_node = None
+
+        for node in univisited_nodes:
+            if current_min_node == None:
+                current_min_node = node
+            elif shortest_path[node] < shortest_path[current_min_node]:
+                current_min_node = node
+
+        neighbors = graph.get_outgoing_edges(current_min_node)
+
+        for neighbor in neighbors:
+            tentative_value = shortest_path[current_min_node] + graph.value(current_min_node, neighbor)
+            if tentative_value < shortest_path[neighbor]:
+                shortest_path[neighbor] = tentative_value
+                previous_nodes[neighbor] = current_min_node
+
+        univisited_nodes.remove(current_min_node)
+
+    return previous_nodes, shortest_path
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -44,11 +112,14 @@ app.layout = html.Div([ # this code section taken from Dash docs https://dash.pl
     html.Div(
         id='output-layout',
     ),
-    # html.Div(
-    #     id='output-algorithm',
-    # ),
+    html.Hr(),
     html.Div(
         id='output-data', 
+    ),
+    html.Hr(),
+    #TODO: algorithm div
+    html.Div(
+        id='output-algorithm',
     ),
 ])
 
@@ -127,13 +198,14 @@ def parse_contents(contents, filename, date):
                     html.Div(
                         [
                             html.Button(
-                                id='algorithm-button',
+                                id='algorithm-button', #TODO: work on algorithm
                                 children='Generate model'
                             )
-                        ]
+                        ],
+                        className='two columns'
                     )
                 ],
-                className='row'
+                className='1 row'
             ),
             dcc.Store(
                 id='stored-data',
@@ -142,19 +214,17 @@ def parse_contents(contents, filename, date):
             html.Div(
                 id='output-table'
             ),
-            html.Div('Raw Content'),
-            html.Pre(
-                contents[0:200] + '...', 
-                style={
-                    'whiteSpace': 'pre-wrap',
-                    'wordBreak': 'break-all'
-                }
-            ),
+            # html.Div('Raw Content'),
+            # html.Pre(
+            #     contents[0:200] + '...', 
+            #     style={
+            #         'whiteSpace': 'pre-wrap',
+            #         'wordBreak': 'break-all'
+            #     }
+            # ),
         ]
     )
     return children
-
-# TODO: add memory callback based on store mechanisms in dash docs
 
 @app.callback(
     Output('output-layout', 'children'),
@@ -209,13 +279,33 @@ def update_data(n, data, dest, prod):
         ]
     )
 
-# @app.callback(
-#     Output('output-algorithm', 'children'),
-#     Input('algorithm-button', 'n_clicks'),
-#     State('filtered-data', 'data')
-# )
-# def algorithm(n, data):
-#     return
+#TODO: algorithm callback
+@app.callback(
+    Output('output-algorithm', 'children'),
+    Input('algorithm-button', 'n_clicks'),
+    State('filtered-data', 'data')
+)
+def algorithm(n, data):
+    if n is None or data is None:
+        raise PreventUpdate
+    
 
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.H3(
+                        'Network Graph',
+                        style={'textAlign': 'center'}
+                    ),
+                    cyto.Cytoscape(), #TODO: graph characteristics
+                ],
+                className='x columns' #TODO: define graph scale
+            ),
+            html.Div( #TODO: algorithm output
+
+            ),
+        ]
+    )
 if __name__ == '__main__':
     app.run_server(debug=True)
