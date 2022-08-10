@@ -145,8 +145,8 @@ def parse_contents(contents, filename, date):
     raw = df
     df['OA'] = df['OA'].replace('\.', '', regex=True).astype(int)
     df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
-    df['Specs'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan']
-    groups = df.groupby(['Specs','Tujuan','Product_Code']).min().apply(list)
+    df['Index'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan'] + df['Tujuan']
+    groups = df.groupby(['Index','Tujuan','Product_Code']).min().apply(list)
     df = groups.reset_index()
 
     children = html.Div(
@@ -240,15 +240,13 @@ def update_layout(list_of_contents, list_of_names, list_of_dates):
         return children
 
 # TODO: consider inputs of destination choice and product choice instead of generate data
-# TODO: generate data only gets triggered once. Fix in future iterations
 @app.callback(
     Output('output-data', 'children'),
     Input('data-button', 'n_clicks'),
     State('stored-data', 'data'),
-    State('destination-choice', 'value'),
     State('product-choice', 'value'),
 )
-def update_data(n, data, dest, prod):
+def update_data(n, data, prod):
     # print(dest)
     # print(type(dest))
     # print(type(prod))
@@ -258,8 +256,38 @@ def update_data(n, data, dest, prod):
         raise PreventUpdate
     
     df = pd.DataFrame.from_records(data)
-    df = df[df['Tujuan'] == dest]
+    # df = df[df['Tujuan'] == dest]
     df = df[df['Product_Code'] == prod]
+    # TODO: see how to combine all of src, nodes, and dest together into a single list
+    src = ['Source']
+    vehicles = [node for node in df['Index']]
+    dstns = [node for node in df['Tujuan'].unique()]
+    # print(dstns)
+    nodes = src + vehicles + dstns
+
+    #TODO: create init_graph NOTE: init_graph is a dict of dicts
+    init_graph = {}
+    for node in nodes:
+        init_graph[node] = {}
+
+    for vehicle in vehicles:
+        init_graph[nodes[0]][vehicle] = 1
+
+    for dstn in dstns:
+        query = df[df['Tujuan'] == dstn]
+        query_vehicle = [node for node in query['Index']]
+        for vehicle in query_vehicle:
+            q = query[query['Index'] == vehicle]
+            init_graph[vehicle][dstn] = q['OA/M3']
+
+    # for dstn in dstns:
+    #     for vehicle in vehicles:
+    #         if dstn in vehicle:
+    #             init_graph[vehicle][dstn] = vehicle[-1]
+    #             vehicles.remove(vehicle)
+    #         else:
+    #             continue
+    nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     records = df.to_dict('records')
     # print(df)
     return html.Div(
@@ -273,54 +301,45 @@ def update_data(n, data, dest, prod):
                 ]
             ),
             dcc.Store(
-                id='filtered-data',
-                data=records
+                id='node-dict',
+                data=nodes_dict
             ),
+            dcc.Store(
+                id='init-graph',
+                data=init_graph
+            )
         ]
     )
 
-#TODO: algorithm callback
-@app.callback(
-    Output('output-algorithm', 'children'),
-    Input('algorithm-button', 'n_clicks'),
-    State('filtered-data', 'data')
-)
-def algorithm(n, data):
-    if n is None or data is None:
-        raise PreventUpdate
+# TODO: algorithm callback
+# @app.callback(
+#     Output('output-algorithm', 'children'),
+#     Input('algorithm-button', 'n_clicks'),
+#     State('node-dict', 'data'),
+#     State('init-graph', 'data')
+# )
+# def algorithm(n, data):
+#     # print(data)
+#     print(type(data))
+#     if n is None or data is None:
+#         raise PreventUpdate
     
-    # TODO: see how to combine all of src, nodes, and dest together into a single list
-    df = pd.DataFrame.from_records(data)
-    src = ['Source']
-    nodes = [
-        node for node in df['Specs'].unique()
-    ]
-    dest = df['Tujuan'].unique()
+#     return html.Div(
+#         [
+#             html.Div(
+#                 [
+#                     html.H3(
+#                         'Network Graph',
+#                         style={'textAlign': 'center'}
+#                     ),
+#                     cyto.Cytoscape(), #TODO: graph characteristics
+#                 ],
+#                 className='x columns' #TODO: define graph scale
+#             ),
+#             html.Div( #TODO: algorithm output
 
-    #TODO: create init_graph NOTE: init_graph is a dict of dicts
-
-    #TODO: use Graph class.
-
-    #TODO: return outputs from dijkstra
-
-
-
-    return html.Div(
-        [
-            html.Div(
-                [
-                    html.H3(
-                        'Network Graph',
-                        style={'textAlign': 'center'}
-                    ),
-                    cyto.Cytoscape(), #TODO: graph characteristics
-                ],
-                className='x columns' #TODO: define graph scale
-            ),
-            html.Div( #TODO: algorithm output
-
-            ),
-        ]
-    )
+#             ),
+#         ]
+#     )
 if __name__ == '__main__':
     app.run_server(debug=True)
