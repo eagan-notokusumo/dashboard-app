@@ -6,78 +6,78 @@ import matplotlib.pyplot as plt
 import pyvis.network as Networkx
 
 class Graph(object):
-    def __init__(self, nodes, initGraph):
+    def __init__(self, nodes, init_graph):
         self.nodes = nodes
-        self.graph = self.constructGraph(nodes, initGraph)
+        self.graph = self.construct_graph(nodes, init_graph)
 
-    def constructGraph(self, nodes, initGraph):
+    def construct_graph(self, nodes, init_graph):
         graph = {}
         for node in nodes:
             graph[node] = {}
 
-        graph.update(initGraph) # updates the graph with instances
+        graph.update(init_graph) # updates the graph with instances
 
         for node, edges in graph.items():
-            for adjacentNode, value in edges.items():
-                if graph[adjacentNode].get(node, False) == False:  # if adjacent node of node is not found
-                    graph[adjacentNode][node] = value # set the value of the node of the adjacent node to value
+            for adjacent_node, value in edges.items():
+                if graph[adjacent_node].get(node, False) == False:  # if adjacent node of node is not found
+                    graph[adjacent_node][node] = value # set the value of the node of the adjacent node to value
 
         return graph
 
-    def getNodes(self):
+    def get_nodes(self):
         return self.nodes
 
-    def getOutgoingEdges(self, node):
+    def get_outgoing_edges(self, node):
         connections = []
-        for outNode in self.nodes:
-            if self.graph[node].get(outNode, False) != False: # checks if the node exists in the graph
-                connections.append(outNode)
+        for out_node in self.nodes:
+            if self.graph[node].get(out_node, False) != False: # checks if the node exists in the graph
+                connections.append(out_node)
         
         return connections
 
     def value(self, node1, node2):
         return self.graph[node1][node2]
 
-def dijkstraAlgorithm(graph, startNode):
-    unvisitedNodes = list(graph.getNodes())
+def dijkstra_algorithm(graph, start_node):
+    unvisited_nodes = list(graph.get_nodes())
 
-    shortestPath = {} # best cost of visiting each node in the graph from start_node
-    previousNodes = {} # stores the incoming trajectory of the best cost path for each node
+    shortest_path = {} # best cost of visiting each node in the graph from start_node
+    previous_nodes = {} # stores the incoming trajectory of the best cost path for each node
     storagePath = []
     storagePrevious = []
-    maxValue = sys.maxsize # defines max value to be infinity
+    max_value = sys.maxsize # defines max value to be infinity
 
-    for node in unvisitedNodes:
-        shortestPath[node] = maxValue # sets each node initially to be infinite cost.
+    for node in unvisited_nodes:
+        shortest_path[node] = max_value # sets each node initially to be infinite cost.
 
-    shortestPath[startNode] = 0 # sets the starting node to be zero.
+    shortest_path[start_node] = 0 # sets the starting node to be zero.
 
-    while unvisitedNodes: # Dijkstra algorithm runs until it visits all nodes in a graph.
-        currentMinNode = None
+    while unvisited_nodes: # Dijkstra algorithm runs until it visits all nodes in a graph.
+        current_min_node = None
 
-        for node in unvisitedNodes:
-            if currentMinNode == None:
-                currentMinNode = node
-            elif shortestPath[node] < shortestPath[currentMinNode]:
-                currentMinNode = node
+        for node in unvisited_nodes:
+            if current_min_node == None:
+                current_min_node = node
+            elif shortest_path[node] < shortest_path[current_min_node]:
+                current_min_node = node
 
-        neighbors = graph.getOutgoingEdges(currentMinNode)
+        neighbors = graph.get_outgoing_edges(current_min_node)
 
         for neighbor in neighbors:
-            tentativeValue = shortestPath[currentMinNode] + graph.value(currentMinNode, neighbor) # check initial value
-            if tentativeValue < shortestPath[neighbor]:
-                shortestPath[neighbor] = tentativeValue # store all routes if possible?
-                previousNodes[neighbor] = currentMinNode
+            tentative_value = shortest_path[current_min_node] + graph.value(current_min_node, neighbor) # check initial value
+            if tentative_value < shortest_path[neighbor]:
+                shortest_path[neighbor] = tentative_value # store all routes if possible?
+                previous_nodes[neighbor] = current_min_node
                 # storagePath.append(shortestPath[neighbor])
                 # storagePrevious.append(previousNodes[neighbor])
 
-        unvisitedNodes.remove(currentMinNode)
+        unvisited_nodes.remove(current_min_node)
     
     # print(storagePath)
     # print(storagePrevious)
     # print(shortestPath)
     # print(previousNodes)
-    return previousNodes, shortestPath
+    return previous_nodes, shortest_path
 
 def printResults(previousNodes, shortestPath, startNode, targetNode):
     path = []
@@ -93,54 +93,45 @@ def printResults(previousNodes, shortestPath, startNode, targetNode):
     print(" -> ".join(reversed(path)))
 
 # TODO: extract sources from a CSV, join route and vehicle type in excel?
-nodes = ['Source', '3082ME', '3082MF', '3082MG', '3082MH', '3082MI', '3082MJ', '3082MK', '3082ML', 'BDG1']
-edges = [
-    ('Source', '3082ME', 1),
-    ('Source', '3082MF', 1),
-    ('Source', '3082MG', 1),
-    ('Source', '3082MH', 1),
-    ('Source', '3082MI', 1),
-    ('Source', '3082MJ', 1),
-    ('Source', '3082MK', 1),
-    ('Source', '3082ML', 1),
-    ('3082ME', 'BDG1', 63920),
-    ('3082MF', 'BDG1', 51807),
-    ('3082MG', 'BDG1', 57571),
-    ('3082MH', 'BDG1', 56520),
-    ('3082MI', 'BDG1', 48889),
-    ('3082MJ', 'BDG1', 55000),
-    ('3082MK', 'BDG1', 58000),
-    ('3082ML', 'BDG1', 60000),
-    ]
+df = pd.read_csv('test_data.csv', encoding='UTF-8', delimiter=',')
 
-initGraph = {}
+df['OA'] = df['OA'].replace('\.', '', regex=True).astype(int)
+df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
+df['Index'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan'] + df['Tujuan']
+groups = df.groupby(['Index','Tujuan','Product_Code']).min().apply(list)
+df = groups.reset_index()
+# print(groups)
+
+src = ['Source']
+vehicles = [node for node in df['Index']]
+dstns = [node for node in df['Tujuan'].unique()]
+
+nodes = src + vehicles + dstns
+
+init_graph = {}
 for node in nodes:
-    initGraph[node] = {}
+    init_graph[node] = {}
 
-# TODO: automatically input, maybe define initially as list of tuples of strings
-initGraph['Source']['3082ME'] = 1
-initGraph['Source']['3082MF'] = 1
-initGraph['Source']['3082MG'] = 1
-initGraph['Source']['3082MH'] = 1
-initGraph['Source']['3082MI'] = 1
-initGraph['Source']['3082MJ'] = 1
-initGraph['Source']['3082MK'] = 1
-initGraph['Source']['3082ML'] = 1
+for vehicle in vehicles:
+    init_graph[nodes[0]][vehicle] = 1
 
-#TODO: automate OA/m3 entry
-initGraph['3082ME']['BDG1'] = 63920
-initGraph['3082MF']['BDG1'] = 51807
-initGraph['3082MG']['BDG1'] = 57571
-initGraph['3082MH']['BDG1'] = 56520
-initGraph['3082MI']['BDG1'] = 48889
-initGraph['3082MJ']['BDG1'] = 55000
-initGraph['3082MK']['BDG1'] = 58000
-initGraph['3082ML']['BDG1'] = 60000
-print(initGraph)
+# print(init_graph)
+for dstn in dstns:
+    filtered= df[df['Tujuan'] == dstn]
+    # print(query)
+    query_vehicle = [node for node in filtered['Index']]
+    print(query_vehicle)
+    for vehicle in query_vehicle:
+        index = query_vehicle.index(vehicle)
+        # print(index)
+        # print(vehicle)
+        # print(q)
+        init_graph[vehicle][dstn] = filtered.iloc[index, -1]
+    # print(init_graph)
 
-
-
-graph = Graph(nodes, initGraph)
+# print(init_graph)
+# print(nodes)
+# graph = Graph(nodes, init_graph)
 # G = nx.DiGraph()
 # G.add_nodes_from(nodes)
 # G.add_weighted_edges_from(edges)
@@ -156,7 +147,7 @@ graph = Graph(nodes, initGraph)
 # nx.draw(G, pos, with_labels=True, font_weight='bold')
 # plt.show()
 
-# previousNodes, shortestPath = dijkstraAlgorithm(graph=graph, startNode='Source')
+# previousNodes, shortestPath = dijkstra_algorithm(graph=graph, startNode='Source')
 
 # printResults(previousNodes,shortestPath, startNode='Source', targetNode='BDG1')
 #TODO: check runtime

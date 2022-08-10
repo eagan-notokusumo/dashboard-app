@@ -8,76 +8,11 @@ from dash.exceptions import PreventUpdate
 import dash_table
 import plotly.express as px
 import dash_cytoscape as cyto
+from dijsktra import Graph, dijkstra_algorithm
 
 import pandas as pd
 import numpy as np
 import sys
-
-class Graph(object):
-    def __init__(self, nodes, init_graph):
-        self.nodes = nodes
-        self.graph = self.construct_graph(nodes, init_graph)
-
-    def construct_graph(self, nodes, init_graph):
-        graph = {}
-
-        for node in nodes:
-            graph[node] = {}
-
-        graph.update(init_graph)
-        for node, edge in graph.items():
-            for adjacent_node, value in edge.items():
-                if graph[adjacent_node].get(node, False) == False:
-                    graph[adjacent_node] = value
-
-        return graph
-
-    def get_nodes(self):
-        return self.nodes
-
-    def get_outgoing_edges(self, node):
-        connections = []
-        for out_node in self.nodes:
-            if self.graph[node].get(out_node, False) != False:
-                connections.append(node)
-            
-        return connections
-
-    def value(self, node1, node2):
-        return self.graph[node1][node2]
-
-def dijkstra_algorithm(graph, start_node):
-    univisited_nodes = list(graph.get_nodes())
-
-    shortest_path = {}
-    previous_nodes = {}
-    max_value = sys.maxsize
-
-    for node in univisited_nodes:
-        shortest_path[node] = max_value
-    
-    shortest_path[start_node] = 0
-
-    while univisited_nodes:
-        current_min_node = None
-
-        for node in univisited_nodes:
-            if current_min_node == None:
-                current_min_node = node
-            elif shortest_path[node] < shortest_path[current_min_node]:
-                current_min_node = node
-
-        neighbors = graph.get_outgoing_edges(current_min_node)
-
-        for neighbor in neighbors:
-            tentative_value = shortest_path[current_min_node] + graph.value(current_min_node, neighbor)
-            if tentative_value < shortest_path[neighbor]:
-                shortest_path[neighbor] = tentative_value
-                previous_nodes[neighbor] = current_min_node
-
-        univisited_nodes.remove(current_min_node)
-
-    return previous_nodes, shortest_path
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -110,7 +45,11 @@ app.layout = html.Div([ # this code section taken from Dash docs https://dash.pl
         multiple=True
     ),
     html.Div(
-        id='output-layout',
+        [
+            html.Div(
+                id='output-layout',
+            ),
+        ]
     ),
     html.Hr(),
     html.Div(
@@ -198,7 +137,7 @@ def parse_contents(contents, filename, date):
                     html.Div(
                         [
                             html.Button(
-                                id='algorithm-button', #TODO: work on algorithm
+                                id='algorithm-button', 
                                 children='Generate model'
                             )
                         ],
@@ -211,9 +150,12 @@ def parse_contents(contents, filename, date):
                 id='stored-data',
                 data=df.to_dict('records')
             ),
-            html.Div(
-                id='output-table'
+            dcc.Store(
+                id='node-data',
             ),
+            dcc.Store(
+                id='init-graph',
+            )
             # html.Div('Raw Content'),
             # html.Pre(
             #     contents[0:200] + '...', 
@@ -242,6 +184,8 @@ def update_layout(list_of_contents, list_of_names, list_of_dates):
 # TODO: consider inputs of destination choice and product choice instead of generate data
 @app.callback(
     Output('output-data', 'children'),
+    Output('node-data', 'data'),
+    Output('init-graph', 'data'),
     Input('data-button', 'n_clicks'),
     State('stored-data', 'data'),
     State('product-choice', 'value'),
@@ -258,39 +202,35 @@ def update_data(n, data, prod):
     df = pd.DataFrame.from_records(data)
     # df = df[df['Tujuan'] == dest]
     df = df[df['Product_Code'] == prod]
-    # TODO: see how to combine all of src, nodes, and dest together into a single list
+    
     src = ['Source']
     vehicles = [node for node in df['Index']]
     dstns = [node for node in df['Tujuan'].unique()]
-    # print(dstns)
     nodes = src + vehicles + dstns
 
-    #TODO: create init_graph NOTE: init_graph is a dict of dicts
     init_graph = {}
     for node in nodes:
         init_graph[node] = {}
 
     for vehicle in vehicles:
         init_graph[nodes[0]][vehicle] = 1
-
+# print(init_graph)
     for dstn in dstns:
-        query = df[df['Tujuan'] == dstn]
-        query_vehicle = [node for node in query['Index']]
+        filtered= df[df['Tujuan'] == dstn]
+        # print(query)
+        query_vehicle = [node for node in filtered['Index']]
+        print(query_vehicle)
         for vehicle in query_vehicle:
-            q = query[query['Index'] == vehicle]
-            init_graph[vehicle][dstn] = q['OA/M3']
-
-    # for dstn in dstns:
-    #     for vehicle in vehicles:
-    #         if dstn in vehicle:
-    #             init_graph[vehicle][dstn] = vehicle[-1]
-    #             vehicles.remove(vehicle)
-    #         else:
-    #             continue
+            index = query_vehicle.index(vehicle)
+            # print(index)
+            # print(vehicle)
+            # print(q)
+            init_graph[vehicle][dstn] = filtered.iloc[index, -1]
+        
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     records = df.to_dict('records')
-    # print(df)
-    return html.Div(
+
+    children = html.Div(
         [
             dash_table.DataTable(
                 id='output-table',
@@ -300,46 +240,50 @@ def update_data(n, data, prod):
                     for i in df.columns
                 ]
             ),
-            dcc.Store(
-                id='node-dict',
-                data=nodes_dict
-            ),
-            dcc.Store(
-                id='init-graph',
-                data=init_graph
-            )
         ]
     )
+    # print(df)
+    return children, nodes_dict, init_graph
 
 # TODO: algorithm callback
-# @app.callback(
-#     Output('output-algorithm', 'children'),
-#     Input('algorithm-button', 'n_clicks'),
-#     State('node-dict', 'data'),
-#     State('init-graph', 'data')
-# )
-# def algorithm(n, data):
-#     # print(data)
-#     print(type(data))
-#     if n is None or data is None:
-#         raise PreventUpdate
+@app.callback(
+    Output('output-algorithm', 'children'),
+    Input('algorithm-button', 'n_clicks'),
+    State('node-data', 'data'),
+    State('init-graph', 'data')
+)
+def algorithm(n, node_data, graph_data):
+    # print(data)
+    if n is None or node_data is None or graph_data is None:
+        raise PreventUpdate
     
-#     return html.Div(
-#         [
-#             html.Div(
-#                 [
-#                     html.H3(
-#                         'Network Graph',
-#                         style={'textAlign': 'center'}
-#                     ),
-#                     cyto.Cytoscape(), #TODO: graph characteristics
-#                 ],
-#                 className='x columns' #TODO: define graph scale
-#             ),
-#             html.Div( #TODO: algorithm output
+    nodes = list(node_data.values())
+    # print(nodes)
+    # print(type(nodes))
+    graph = Graph(nodes, graph_data)
+    previous_nodes, shortest_path = dijkstra_algorithm(graph, start_node='Source')
+    # print(graph)
+    print(previous_nodes)
+    print(type(previous_nodes))
+    print(shortest_path)
+    print(type(shortest_path))
 
-#             ),
-#         ]
-#     )
+    # return html.Div(
+    #     [
+    #         html.Div(
+    #             [
+    #                 html.H3(
+    #                     'Network Graph',
+    #                     style={'textAlign': 'center'}
+    #                 ),
+    #                 cyto.Cytoscape(), #TODO: graph characteristics
+    #             ],
+    #             className='x columns' #TODO: define graph scale
+    #         ),
+    #         html.Div( #TODO: algorithm output
+
+    #         ),
+    #     ]
+    # )
 if __name__ == '__main__':
     app.run_server(debug=True)
