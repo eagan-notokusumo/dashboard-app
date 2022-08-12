@@ -53,13 +53,14 @@ app.layout = html.Div([ # this code section taken from Dash docs https://dash.pl
     ),
     html.Hr(),
     html.Div(
+        id='output-algorithm',
+    ),
+    html.Div(
         id='output-data', 
     ),
     html.Hr(),
     #TODO: algorithm div
-    html.Div(
-        id='output-algorithm',
-    ),
+    
 ])
 
 
@@ -81,7 +82,7 @@ def parse_contents(contents, filename, date):
             'There was an error processing this file.'
         ])
 
-    raw = df
+    # print(df.dtypes)
     df['OA'] = df['OA'].replace('\.', '', regex=True).astype(int)
     df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
     df['Index'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan'] + df['Tujuan']
@@ -94,6 +95,20 @@ def parse_contents(contents, filename, date):
             html.H6(datetime.datetime.fromtimestamp(date)),
             html.Div(
                 [
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id='start-choice',
+                                clearable=True,
+                                options=[
+                                    {'label': i, 'value': i}
+                                    for i in df['Tppt'].unique()
+                                ],
+                                placeholder='Enter source(s)',
+                            )
+                        ],
+                        className='two columns'
+                    ),
                     html.Div(
                         [
                             dcc.Dropdown(
@@ -279,13 +294,21 @@ def algorithm(n, node_data, graph_data):
 
 @app.callback(
     Output('output-algorithm', 'children'),
+    Input('start-choice', 'value'),
     Input('destination-choice', 'value'),
     State('shortest-path', 'data'),
     State('previous-nodes', 'data')
 )
-def output_algorithm(dest_choice, shortest_path, previous_nodes):
+def output_algorithm(start_choice, dest_choice, shortest_path, previous_nodes):
+    print(start_choice)
+    print(dest_choice)
+    if shortest_path is None or previous_nodes is None:
+        raise PreventUpdate
+
     path = []
     node = dest_choice
+
+
 
     while node != 'Source':
         path.append(node)
