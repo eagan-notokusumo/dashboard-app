@@ -155,6 +155,12 @@ def parse_contents(contents, filename, date):
             ),
             dcc.Store(
                 id='init-graph',
+            ),
+            dcc.Store(
+                id='shortest-path'
+            ),
+            dcc.Store(
+                id='previous-nodes'
             )
             # html.Div('Raw Content'),
             # html.Pre(
@@ -247,7 +253,8 @@ def update_data(n, data, prod):
 
 # TODO: algorithm callback
 @app.callback(
-    Output('output-algorithm', 'children'),
+    Output('shortest-path', 'data'),
+    Output('previous-nodes', 'data'),
     Input('algorithm-button', 'n_clicks'),
     State('node-data', 'data'),
     State('init-graph', 'data')
@@ -268,22 +275,33 @@ def algorithm(n, node_data, graph_data):
     print(shortest_path)
     print(type(shortest_path))
 
-    # return html.Div(
-    #     [
-    #         html.Div(
-    #             [
-    #                 html.H3(
-    #                     'Network Graph',
-    #                     style={'textAlign': 'center'}
-    #                 ),
-    #                 cyto.Cytoscape(), #TODO: graph characteristics
-    #             ],
-    #             className='x columns' #TODO: define graph scale
-    #         ),
-    #         html.Div( #TODO: algorithm output
+    return shortest_path, previous_nodes
 
-    #         ),
-    #     ]
-    # )
+@app.callback(
+    Output('output-algorithm', 'children'),
+    Input('destination-choice', 'value'),
+    State('shortest-path', 'data'),
+    State('previous-nodes', 'data')
+)
+def output_algorithm(dest_choice, shortest_path, previous_nodes):
+    path = []
+    node = dest_choice
+
+    while node != 'Source':
+        path.append(node)
+        node = previous_nodes[node]
+
+    path.append('Source')
+
+    return html.Div(
+        [
+            html.Div(
+                html.P('Best path value: {}'.format(shortest_path[dest_choice]))
+            ),
+            html.Div(
+                html.P(" -> ".join(reversed(path)))
+            )
+        ]
+    )
 if __name__ == '__main__':
     app.run_server(debug=True)
