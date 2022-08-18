@@ -1,3 +1,4 @@
+from operator import itemgetter
 import sys
 import networkx as nx
 import numpy as np
@@ -37,6 +38,9 @@ class Graph(object):
 
     def value(self, node1, node2):
         return self.graph[node1][node2]
+
+    def remove_edge(self, node1, node2):
+        return self.graph.pop([node1][node2])
 
 def dijkstra_algorithm(graph, start_node):
     unvisited_nodes = list(graph.get_nodes())
@@ -79,7 +83,7 @@ def dijkstra_algorithm(graph, start_node):
     # print(previousNodes)
     return previous_nodes, shortest_path
 
-def printResults(previousNodes, shortestPath, startNode, targetNode):
+def path(previousNodes, startNode, targetNode):
     path = []
     node = targetNode
 
@@ -88,19 +92,64 @@ def printResults(previousNodes, shortestPath, startNode, targetNode):
         node = previousNodes[node]
     
     path.append(startNode)
-
-    print('Best path value: {}'.format(shortestPath[targetNode]))
-    print(" -> ".join(reversed(path)))
+    path = reversed(path)
+    # print(path)
+    return path
 
 def ksp_yen(graph, start_node, end_node, max_k):
-    shortest_path, previous_nodes = dijkstra_algorithm(graph, start_node)
+    previous_nodes, shortest_path = dijkstra_algorithm(graph, start_node)
 
     A = [
         {
             'cost': shortest_path[end_node],
-            'path': 
+            'path': path(previous_nodes, start_node, end_node)
         }
     ]
+
+    B = []
+
+    if not A[0]['path']:
+        return A
+
+    for k in range(1, max_k):
+        for i in range(0, len(A[-1]['path']) - 1):
+            spur_node = A[-1]['path'][i]
+            root_path = A[-1]['path'][i+1]
+
+            removed_edges = []
+            for path_k in A:
+                current_path = path_k['path']
+                if len(current_path) > i and root_path == current_path[:i+1]:
+                    cost = graph.remove_edge(current_path[i], current_path[i+1])
+                    if cost == -1:
+                        continue
+                    removed_edges.append([current_path[i], current_path[i+1], cost])
+            
+            pn_spur, sp_spur = dijkstra_algorithm(graph, spur_node)
+            spur_path = path(pn_spur, spur_node, end_node)
+
+            if spur_path['path']:
+                total_path = root_path[:-1] + spur_path['path']
+                total_cost = shortest_path[spur_node] + spur_path['cost']
+                potential_k = {'cost': total_cost, 'path': total_path}
+                
+                if not (potential_k in B):
+                    B.append(potential_k)
+
+            for edge in removed_edges:
+                graph
+                # 
+        if len(B):
+            B = sorted(B, key=itemgetter('cost'))
+            A.append(B[0])
+            B.pop(0)
+        else:
+            break
+
+    return A
+                
+
+
 # TODO: extract sources from a CSV, join route and vehicle type in excel?
 df = pd.read_csv('test_data.csv', encoding='UTF-8', delimiter=',')
 
