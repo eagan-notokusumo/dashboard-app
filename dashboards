@@ -12,7 +12,8 @@ from dijsktra import Graph, dijkstra_algorithm
 
 import pandas as pd
 import numpy as np
-import sys
+import pprint
+
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -83,6 +84,7 @@ def parse_contents(contents, filename, date):
         ])
 
     # print(df.dtypes)
+    df['Tppt'] = df['Tppt'].astype(str)
     df['OA'] = df['OA'].replace('\.', '', regex=True).astype(int)
     df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
     df['Index'] = df['Tppt'].astype(str) + df['Tipe_Kendaraan'] + df['Tujuan']
@@ -100,6 +102,7 @@ def parse_contents(contents, filename, date):
                             dcc.Dropdown(
                                 id='start-choice',
                                 clearable=True,
+                                # multi=True,
                                 options=[
                                     {'label': i, 'value': i}
                                     for i in df['Tppt'].unique()
@@ -208,15 +211,12 @@ def update_layout(list_of_contents, list_of_names, list_of_dates):
     Output('node-data', 'data'),
     Output('init-graph', 'data'),
     Input('data-button', 'n_clicks'),
+    State('start-choice', 'value'),
     State('stored-data', 'data'),
     State('product-choice', 'value'),
 )
-def update_data(n, data, prod):
-    # print(dest)
-    # print(type(dest))
-    # print(type(prod))
-    # print(prod)
-    # print(data)
+def update_data(n, start, data, prod):
+    print(start)
     if n is None or data is None:
         raise PreventUpdate
     
@@ -224,6 +224,9 @@ def update_data(n, data, prod):
     # df = df[df['Tujuan'] == dest]
     df = df[df['Product_Code'] == prod]
     
+    # TODO: reconsider how data is inputted i.e. source -> routes -> dest -> routes -> dest
+    # TODO: skip STO destinations, use directly in routes, and only have source, main dest.
+
     src = ['Source']
     vehicles = [node for node in df['Index']]
     dstns = [node for node in df['Tujuan'].unique()]
@@ -234,20 +237,28 @@ def update_data(n, data, prod):
         init_graph[node] = {}
 
     for vehicle in vehicles:
-        init_graph[nodes[0]][vehicle] = 1
+        if start is None or start in vehicle:
+            init_graph[nodes[0]][vehicle] = 1
+        elif start is not None and start not in vehicle:
+            continue
+
+# fill out non source
 # print(init_graph)
     for dstn in dstns:
-        filtered= df[df['Tujuan'] == dstn]
-        # print(query)
+        filtered = df[df['Tujuan'] == dstn]
         query_vehicle = [node for node in filtered['Index']]
-        print(query_vehicle)
+
         for vehicle in query_vehicle:
             index = query_vehicle.index(vehicle)
-            # print(index)
-            # print(vehicle)
-            # print(q)
             init_graph[vehicle][dstn] = filtered.iloc[index, -1]
+
+        for vehicle in vehicles:
+            if vehicle.startswith(dstn):
+                init_graph[dstn][vehicle] = 1
+            else:
+                continue
         
+    print(init_graph)
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     records = df.to_dict('records')
 
@@ -286,29 +297,25 @@ def algorithm(n, node_data, graph_data):
     previous_nodes, shortest_path = dijkstra_algorithm(graph, start_node='Source')
     # print(graph)
     print(previous_nodes)
-    print(type(previous_nodes))
-    print(shortest_path)
-    print(type(shortest_path))
+    # print(type(previous_nodes))
+    # print(shortest_path)
+    # print(type(shortest_path))
 
     return shortest_path, previous_nodes
 
 @app.callback(
     Output('output-algorithm', 'children'),
-    Input('start-choice', 'value'),
     Input('destination-choice', 'value'),
     State('shortest-path', 'data'),
     State('previous-nodes', 'data')
 )
-def output_algorithm(start_choice, dest_choice, shortest_path, previous_nodes):
-    print(start_choice)
+def output_algorithm(dest_choice, shortest_path, previous_nodes):
     print(dest_choice)
     if shortest_path is None or previous_nodes is None:
         raise PreventUpdate
 
     path = []
     node = dest_choice
-
-
 
     while node != 'Source':
         path.append(node)
