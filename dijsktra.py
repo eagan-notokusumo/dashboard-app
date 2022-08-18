@@ -92,6 +92,15 @@ def printResults(previousNodes, shortestPath, startNode, targetNode):
     print('Best path value: {}'.format(shortestPath[targetNode]))
     print(" -> ".join(reversed(path)))
 
+def ksp_yen(graph, start_node, end_node, max_k):
+    shortest_path, previous_nodes = dijkstra_algorithm(graph, start_node)
+
+    A = [
+        {
+            'cost': shortest_path[end_node],
+            'path': 
+        }
+    ]
 # TODO: extract sources from a CSV, join route and vehicle type in excel?
 df = pd.read_csv('test_data.csv', encoding='UTF-8', delimiter=',')
 

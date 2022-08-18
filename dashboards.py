@@ -262,6 +262,7 @@ def update_data(n, start, data, prod):
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     records = df.to_dict('records')
 
+    #TODO: change output-table
     children = html.Div(
         [
             dash_table.DataTable(
