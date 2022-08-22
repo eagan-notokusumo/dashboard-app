@@ -452,7 +452,6 @@ if __name__ == '__main__':
     app.run_server(debug=True)
 
 
-#TODO: debug more than 3 shortest paths
 #TODO: fix layouts
 #TODO: remove individual node option (even to an entire BIG node), figure out how to affect init_graph
 #TODO: add comparisons for multiple routes
