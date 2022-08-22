@@ -1,10 +1,9 @@
 from operator import itemgetter
 import sys
-import networkx as nx
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import pyvis.network as Networkx
+
+
 
 class Graph(object):
     def __init__(self, nodes, init_graph):
@@ -92,7 +91,7 @@ def path(previousNodes, startNode, targetNode):
         node = previousNodes[node]
     
     path.append(startNode)
-    path = reversed(path)
+    path = list(reversed(path))
     # print(path)
     return path
 
@@ -102,7 +101,7 @@ def ksp_yen(graph, start_node, end_node, max_k):
     A = [
         {
             'cost': shortest_path[end_node],
-            'path': path(previous_nodes, start_node, end_node)
+            'path': paths(previous_nodes, start_node, end_node)
         }
     ]
 
@@ -126,7 +125,7 @@ def ksp_yen(graph, start_node, end_node, max_k):
                     removed_edges.append([current_path[i], current_path[i+1], cost])
             
             pn_spur, sp_spur = dijkstra_algorithm(graph, spur_node)
-            spur_path = path(pn_spur, spur_node, end_node)
+            spur_path = paths(pn_spur, spur_node, end_node)
 
             if spur_path['path']:
                 total_path = root_path[:-1] + spur_path['path']
@@ -178,7 +177,7 @@ for dstn in dstns:
     filtered= df[df['Tujuan'] == dstn]
     # print(query)
     query_vehicle = [node for node in filtered['Index']]
-    print(query_vehicle)
+    # print(query_vehicle)
     for vehicle in query_vehicle:
         index = query_vehicle.index(vehicle)
         # print(index)
@@ -190,6 +189,7 @@ for dstn in dstns:
 # print(init_graph)
 # print(nodes)
 # graph = Graph(nodes, init_graph)
+# print(graph)
 # G = nx.DiGraph()
 # G.add_nodes_from(nodes)
 # G.add_weighted_edges_from(edges)
@@ -205,7 +205,7 @@ for dstn in dstns:
 # nx.draw(G, pos, with_labels=True, font_weight='bold')
 # plt.show()
 
-# previousNodes, shortestPath = dijkstra_algorithm(graph=graph, startNode='Source')
-
+# previousNodes, shortestPath = dijkstra_algorithm(graph=graph, start_node='Source')
+# result = path(previousNodes, startNode='Source', targetNode='BDG1')
 # printResults(previousNodes,shortestPath, startNode='Source', targetNode='BDG1')
 #TODO: check runtime

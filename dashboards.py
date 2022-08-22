@@ -1,14 +1,14 @@
 import base64
 import datetime
 import io
+from operator import itemgetter
 
 import dash
-from dash import html, Input, Output, State, dcc
+from dash import html, Input, Output, State, dcc, dash_table
 from dash.exceptions import PreventUpdate
-import dash_table
 import plotly.express as px
 import dash_cytoscape as cyto
-from dijsktra import Graph, dijkstra_algorithm
+from dijsktra import Graph, dijkstra_algorithm, path
 
 import pandas as pd
 import numpy as np
@@ -63,8 +63,7 @@ app.layout = html.Div([ # this code section taken from Dash docs https://dash.pl
     #TODO: algorithm div
     
 ])
-
-
+                
 def parse_contents(contents, filename, date):
     content_type, content_string = contents.split(',')
 
@@ -145,6 +144,19 @@ def parse_contents(contents, filename, date):
                     ),
                     html.Div(
                         [
+                            dcc.Dropdown(
+                                id='num-paths',
+                                clearable=False,
+                                options=[
+                                    i for i in range(1,6)
+                                ],
+                                placeholder='Enter number of paths'
+                            )
+                        ],
+                        className='two columns'
+                    ),
+                    html.Div(
+                        [
                             html.Button(
                                 id='data-button',
                                 children='Generate data'
@@ -192,6 +204,70 @@ def parse_contents(contents, filename, date):
     )
     return children
 
+def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
+    graph = Graph(nodes, init_graph)
+    previous_nodes, shortest_path = dijkstra_algorithm(graph, start_node)
+
+    A = [{
+        'cost': shortest_path[end_node],
+        'path_': path(previous_nodes, start_node, end_node)
+    }]
+
+    B = []
+
+    if not A[0]['path_']:
+        return A
+
+    for k in range(1, max_k):
+        for i in range(0,len(A[k-1]['path_']) - 1, 2):
+            spur_node = A[k-1]['path_'][i]
+            root_path = A[k-1]['path_'][:i]
+
+            removed_edges = []
+            for path_k in A:
+                current_path = path_k['path_']
+                print(current_path)
+                if len(current_path[i+1]) > 8 and current_path[i+1] in nodes:
+                    print(current_path[i+1])
+                    nodes.remove(current_path[i+1])
+                    if len(current_path) - 1 > i and root_path == current_path[:i]:
+                    # print(len(nodes))
+                        cost = init_graph[current_path[i]].pop(current_path[i+1])
+                        if cost == -1:
+                            continue
+                        removed_edges.append([current_path[i], current_path[i+1], cost])
+                    # print(removed_edges)
+                    # print(init_graph)
+
+            graph_spur = Graph(nodes, init_graph)
+
+            pn_spur, sp_spur = dijkstra_algorithm(graph_spur, spur_node)
+            spur_path = {
+                'cost': sp_spur[end_node],
+                'path_': path(pn_spur, spur_node, end_node)
+            }
+            
+            if spur_path['path_']:
+                total_path = root_path + spur_path['path_']
+                total_cost = shortest_path[spur_node] + spur_path['cost']
+                potential_k = {'cost': total_cost, 'path_': total_path}
+
+                if not (potential_k in B):
+                    B.append(potential_k)
+
+            for edge in removed_edges:
+                init_graph[edge[0]][edge[1]] = edge[2]
+                if edge[1] not in nodes:
+                    nodes.append(edge[1])
+
+        if len(B):
+            B = sorted(B, key=itemgetter('cost'))
+            A.append(B[0])
+            B.pop(0)
+        else:
+            break
+    return A
+
 @app.callback(
     Output('output-layout', 'children'),
     Input('upload-data', 'contents'),
@@ -216,7 +292,7 @@ def update_layout(list_of_contents, list_of_names, list_of_dates):
     State('product-choice', 'value'),
 )
 def update_data(n, start, data, prod):
-    print(start)
+    # print(start)
     if n is None or data is None:
         raise PreventUpdate
     
@@ -258,7 +334,7 @@ def update_data(n, start, data, prod):
             else:
                 continue
         
-    print(init_graph)
+    # print(init_graph)
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     records = df.to_dict('records')
 
@@ -280,59 +356,104 @@ def update_data(n, start, data, prod):
 
 # TODO: algorithm callback
 @app.callback(
-    Output('shortest-path', 'data'),
-    Output('previous-nodes', 'data'),
+    Output('output-algorithm', 'children'),
     Input('algorithm-button', 'n_clicks'),
     State('node-data', 'data'),
-    State('init-graph', 'data')
+    State('init-graph', 'data'),
+    State('num-paths', 'value'),
+    State('destination-choice', 'value'),
 )
-def algorithm(n, node_data, graph_data):
+def algorithm(n, node_data, graph_data, num_paths, dest_node): # Yen's algorithm
     # print(data)
     if n is None or node_data is None or graph_data is None:
         raise PreventUpdate
     
     nodes = list(node_data.values())
-    # print(nodes)
-    # print(type(nodes))
-    graph = Graph(nodes, graph_data)
-    previous_nodes, shortest_path = dijkstra_algorithm(graph, start_node='Source')
-    # print(graph)
-    print(previous_nodes)
-    # print(type(previous_nodes))
-    # print(shortest_path)
-    # print(type(shortest_path))
+    A = yen_algorithm(graph_data, nodes, start_node='Source', end_node=dest_node, max_k=num_paths)
+    costs = []
+    paths = []
+    for route in A:
+        costs.append(route['cost'])
+        paths.append(route['path_'])
 
-    return shortest_path, previous_nodes
-
-@app.callback(
-    Output('output-algorithm', 'children'),
-    Input('destination-choice', 'value'),
-    State('shortest-path', 'data'),
-    State('previous-nodes', 'data')
-)
-def output_algorithm(dest_choice, shortest_path, previous_nodes):
-    print(dest_choice)
-    if shortest_path is None or previous_nodes is None:
-        raise PreventUpdate
-
-    path = []
-    node = dest_choice
-
-    while node != 'Source':
-        path.append(node)
-        node = previous_nodes[node]
-
-    path.append('Source')
+    print(costs)
+    print(paths)
 
     return html.Div(
         [
             html.Div(
-                html.P('Best path value: {}'.format(shortest_path[dest_choice]))
-            ),
+                [
+                    html.Div(
+                        [
+                            html.H5('Costs')
+                        ],
+                    ),
+                    html.Div(
+                        [
+                            html.Ol([html.Li(x) for x in costs])
+                        ]
+                    ),
+                ]
+            ), # display costs?
             html.Div(
-                html.P(" -> ".join(reversed(path)))
-            )
-        ]
+                [
+                    html.Div(
+                        [
+                            html.H5('Shortest paths')
+                        ],
+                    ),
+                    html.Div(
+                        [
+                            html.Ol([html.Li(" -> ".join(x)) for x in paths])
+                        ]
+                    ),
+                ]
+            ), # display paths
+            html.Div(
+                [
+
+                ]
+            ), # display route speci
+        ],
+        className='row',
     )
+
+# @app.callback(
+#     Output('output-algorithm', 'children'),
+#     Input('destination-choice', 'value'),
+#     State('shortest-path', 'data'),
+#     State('previous-nodes', 'data')
+# )
+# def output_algorithm(dest_choice, shortest_path, previous_nodes):
+#     print(dest_choice)
+#     if shortest_path is None or previous_nodes is None:
+#         raise PreventUpdate
+
+#     path = []
+#     node = dest_choice
+
+#     while node != 'Source':
+#         path.append(node)
+#         node = previous_nodes[node]
+
+#     path.append('Source')
+
+#     return html.Div(
+#         [
+#             html.Div(
+#                 html.P('Best path value: {}'.format(shortest_path[dest_choice]))
+#             ),
+#             html.Div(
+#                 html.P(" -> ".join(reversed(path)))
+#             )
+#         ]
+#     )
 if __name__ == '__main__':
     app.run_server(debug=True)
+
+
+#TODO: debug more than 3 shortest paths
+#TODO: fix layouts
+#TODO: remove individual node option (even to an entire BIG node), figure out how to affect init_graph
+#TODO: add comparisons for multiple routes
+#TODO: add bar graphs to show price comparisons x axis: sources, y axis: prices
