@@ -2,6 +2,7 @@ import base64
 import datetime
 import io
 from operator import itemgetter
+import itertools
 
 import dash
 from dash import html, Input, Output, State, dcc, dash_table
@@ -148,7 +149,7 @@ def parse_contents(contents, filename, date):
                                 id='num-paths',
                                 clearable=False,
                                 options=[
-                                    i for i in range(1,6)
+                                    i for i in range(1,100)
                                 ],
                                 placeholder='Enter number of paths'
                             )
@@ -224,23 +225,52 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             root_path = A[k-1]['path_'][:i]
 
             removed_edges = []
+            pp = sorted([A[j]['path_'][:i] for j in range(len(A)-1)])
+            pp_unique = list(pp for pp,_ in itertools.groupby(pp))
+
             for path_k in A:
                 current_path = path_k['path_']
-                print(current_path)
-                if len(current_path[i+1]) > 8 and current_path[i+1] in nodes:
-                    print(current_path[i+1])
+                # print(current_path[i+1])
+                if len(current_path[i+1]) > 8 and current_path[i+1] in nodes: # removing transient nodes
+                    # print(current_path[i+1])
                     nodes.remove(current_path[i+1])
+                    # print(current_path[:i])
                     if len(current_path) - 1 > i and root_path == current_path[:i]:
                     # print(len(nodes))
                         cost = init_graph[current_path[i]].pop(current_path[i+1])
+                        init_graph[current_path[i+1]].pop(current_path[i])
                         if cost == -1:
                             continue
                         removed_edges.append([current_path[i], current_path[i+1], cost])
+                    
+                elif any(pp_unique):
+                    for previous_path in pp_unique:
+                        p0 = len(previous_path[:i-2])
+                        p1 = len(previous_path[:i-1])
+                        if current_path[:i] not in pp_unique:
+                            if previous_path[p1] not in init_graph[previous_path[p0]].keys():
+                                continue
+                            else:
+                                cost2 = init_graph[previous_path[p0]].pop(previous_path[p1])
+                                init_graph[previous_path[p1]].pop(previous_path[p0])
+                                removed_edges.append([previous_path[p0], previous_path[p1], cost2])
+                        elif current_path[:i] == root_path and previous_path != current_path[:i]:
+                            if previous_path[p1] not in init_graph[previous_path[p0]].keys():
+                                continue
+                            else:
+                                cost3 = init_graph[previous_path[p0]].pop(previous_path[p1])
+                                init_graph[previous_path[p1]].pop(previous_path[p0])
+                                removed_edges.append([previous_path[p0], previous_path[p1], cost2])
+
+                            
+
                     # print(removed_edges)
                     # print(init_graph)
 
-            graph_spur = Graph(nodes, init_graph)
+                    # TODO: issue that nodes disappear
 
+            graph_spur = Graph(nodes, init_graph)
+            pn_init, sp_init = dijkstra_algorithm(graph_spur, start_node='Source')
             pn_spur, sp_spur = dijkstra_algorithm(graph_spur, spur_node)
             spur_path = {
                 'cost': sp_spur[end_node],
@@ -249,7 +279,7 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             
             if spur_path['path_']:
                 total_path = root_path + spur_path['path_']
-                total_cost = shortest_path[spur_node] + spur_path['cost']
+                total_cost = sp_init[spur_node] + spur_path['cost'] #TODO: the issue is shortest path is the oldest version
                 potential_k = {'cost': total_cost, 'path_': total_path}
 
                 if not (potential_k in B):
@@ -257,6 +287,7 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
 
             for edge in removed_edges:
                 init_graph[edge[0]][edge[1]] = edge[2]
+                init_graph[edge[1]][edge[0]] = edge[2]
                 if edge[1] not in nodes:
                     nodes.append(edge[1])
 
