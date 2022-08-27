@@ -407,8 +407,8 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node): # Yen's algorithm
         costs.append(route['cost'])
         paths.append(route['path_'])
 
-    print(costs)
-    print(paths)
+    # print(costs)
+    # print(paths)
 
     return html.Div(
         [
