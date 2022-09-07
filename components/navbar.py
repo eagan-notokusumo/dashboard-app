@@ -6,7 +6,7 @@ def NavBar():
         [
             dbc.NavbarSimple(
                 [
-                    dbc.NavItem(dbc.NavLink('How to', href='/how-to')),
+                    dbc.NavItem(dbc.NavLink('How to', href='/source-code')),
                     dbc.NavItem(dbc.NavLink('Dashboard', href='/dashboard')),
                 ],
                 brand='Network Optimization App',
