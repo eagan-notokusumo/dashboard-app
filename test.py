@@ -25,6 +25,7 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
                 suppress_callback_exceptions=True)
 
 app.layout = html.Div([ # this code section taken from Dash docs https://dash.plotly.com/dash-core-components/upload
+	# TODO: add learn more section in  header following app format
     html.H1(
         'Network Optimization Dashboard',
         style={'textAlign': 'center'}
@@ -257,7 +258,7 @@ def parse_contents(contents, filename, date):
                                     placeholder='Enter number of paths'
                                 )
                             ],
-                            className='two columns'
+                            className='one column'
                         ),
                         html.Div(
                             [
@@ -276,7 +277,19 @@ def parse_contents(contents, filename, date):
                                 )
                             ],
                             className='two columns'
-                        )
+                        ),
+						html.Div(
+							[
+								html.Button(
+									id='download-button',
+									children='Download data',
+								),
+								html.Download(
+									id='download-csv'
+								)
+							],
+							className='two columns'
+						)
                     ],
                     className='1 row'
                 ),
@@ -393,7 +406,7 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             
             if spur_path['path_']:
                 total_path = root_path + spur_path['path_']
-                total_cost = sp_init[spur_node] + spur_path['cost'] #TODO: the issue is shortest path is the oldest version
+                total_cost = sp_init[spur_node] + spur_path['cost'] 
                 potential_k = {'cost': total_cost, 'path_': total_path}
 
                 if not (potential_k in B):
@@ -415,6 +428,10 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             B = B[:index]
         else:
             break
+
+		for index, val in enumerate(A):
+			if start_node in val['path_'][1:]:
+				A.pop(index)
 
     return A
 
@@ -497,20 +514,6 @@ def update_data(n, data, format_data):
         for index, value in enumerate(filtered['Destination']):
             init_graph[node][value] = filtered.iloc[index, -1]
 
-        # query_vehicle = [x for x in filtered['Index']]
-
-        # for vehicle in query_vehicle:
-        #     init_graph[node][vehicle] = 1
-
-    # for dstn in dstns:
-    #     filtered = df[df['Tujuan'] == dstn]
-    #     query_vehicle = [x for x in filtered['Index']]
-
-    #     for vehicle in query_vehicle:
-    #         index = query_vehicle.index(vehicle)
-    #         init_graph[vehicle][dstn] = filtered.iloc[index, -1]
-                    
-    # print(init_graph)
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     sources_dict = {i: src[i] for i in range(0,len(src))}
     filtered_data = min_OA.to_dict('records')
@@ -559,12 +562,18 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
             # nodes.remove(node)
             local_graph[node].pop(src)
 
+		# TODO: might want to change max_k into showing all possible routes
         A = yen_algorithm(local_graph, nodes, start_node=src, end_node=dest_node, max_k=num_paths)
 
         for route in A:
             costs[src].append(route['cost'])
             paths[src].append(route['path_'])
-        
+
+
+	singulars = [value for value in A if len(value) == 1]
+	# find all sources where length is = 1
+		# find src + 1 in the list of costs/paths
+		
         # for node in data_node:
         #     nodes.append(node)
 
@@ -638,6 +647,7 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
         bargroupgap=0.1,
     )
 
+	# TODO: add piechart to show most used source STO/direct
 
     
     # print(costs)
@@ -658,41 +668,22 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
         ]
     )
 
-# @app.callback(
-#     Output('output-algorithm', 'children'),
-#     Input('destination-choice', 'value'),
-#     State('shortest-path', 'data'),
-#     State('previous-nodes', 'data')
-# )
-# def output_algorithm(dest_choice, shortest_path, previous_nodes):
-#     print(dest_choice)
-#     if shortest_path is None or previous_nodes is None:
-#         raise PreventUpdate
+@app.callback(
+	Output('download-csv', 'data'),
+	Input('download-button', 'n_clicks'),
+	State(),
+	prevent_initial_callbacks=True
+)
+def download_csv(n, data):
+	#TODO: fix download button
+	return dcc.send_data(data.to_csv(), 'optimal_routes.csv')
+	
 
-#     path = []
-#     node = dest_choice
-
-#     while node != 'Source':
-#         path.append(node)
-#         node = previous_nodes[node]
-
-#     path.append('Source')
-
-#     return html.Div(
-#         [
-#             html.Div(
-#                 html.P('Best path value: {}'.format(shortest_path[dest_choice]))
-#             ),
-#             html.Div(
-#                 html.P(" -> ".join(reversed(path)))
-#             )
-#         ]
-#     )
 if __name__ == '__main__':
     app.run_server(debug=True)
 
 
 #TODO: fix layouts
+#TODO: add loading bars
 #TODO: remove individual node option (even to an entire BIG node), figure out how to affect init_graph
-#TODO: add comparisons for multiple routes
-#TODO: add bar graphs to show price comparisons x axis: sources, y axis: prices
+#TODO: deploy on heroku
