@@ -18,10 +18,10 @@ class Graph(object):
 
         graph.update(init_graph) # updates the graph with instances
 
-        for node, edges in graph.items():
-            for adjacent_node, value in edges.items():
-                if graph[adjacent_node].get(node, False) == False:  # if adjacent node of node is not found
-                    graph[adjacent_node][node] = value # set the value of the node of the adjacent node to value
+        # for node, edges in graph.items():
+        #     for adjacent_node, value in edges.items():
+        #         if graph[adjacent_node].get(node, False) == False:  # if adjacent node of node is not found
+        #             graph[adjacent_node][node] = value # set the value of the node of the adjacent node to value
 
         return graph
 
