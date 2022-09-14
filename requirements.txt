@@ -1,0 +1,10 @@
+dash==2.6.0
+dash_bootstrap_components==1.2.0
+dash_cytoscape==0.3.0
+numpy==1.20.3
+pandas==1.4.3
+plotly==5.9.0
+pyrsistent==0.18.0
+wfastcgi
+flask
+

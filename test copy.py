@@ -25,7 +25,6 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
                 suppress_callback_exceptions=True)
 
 app.layout = html.Div([ # this code section taken from Dash docs https://dash.plotly.com/dash-core-components/upload
-	# TODO: add learn more section in  header following app format
     html.H1(
         'Network Optimization Dashboard',
         style={'textAlign': 'center'}
@@ -87,11 +86,7 @@ def parse_contents(contents, filename, date):
     # print(df.dtypes)
     df['Tppt'] = df['Tppt'].astype(str)
     df['OA'] = df['OA'].replace(',', '', regex=True).astype(int)
-    # df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
-    # df['Index'] = df['Source'].astype(str) + df['Tipe_Kendaraan'] + df['Tujuan']
     df['Index'] = df['Route'] + df['Vendor_ID'].astype(str)
-    # groups = df.groupby(['Index','Tujuan','Product_Code']).apply(list)
-    # df = groups.reset_index()
     print(df)
     
     if 'Product_Code' in df.columns:
@@ -169,15 +164,6 @@ def parse_contents(contents, filename, date):
                             ],
                             className='two columns'
                         ),
-                        html.Div(
-                            [
-                                html.Button(
-                                    id='algorithm-button', 
-                                    children='Generate model'
-                                )
-                            ],
-                            className='two columns'
-                        )
                     ],
                     className='1 row'
                 ),
@@ -227,10 +213,10 @@ def parse_contents(contents, filename, date):
                                         'Average Cost',
                                         'Maximum Cost',
                                     ],
-                                    placeholder='Enter cost data format'
+                                    placeholder='Enter vendor data'
                                 )
                             ],
-                            className='two columns'
+                            className='three columns',
                         ),
                         html.Div(
                             [
@@ -255,10 +241,10 @@ def parse_contents(contents, filename, date):
                                     options=[
                                         i for i in range(1,6)
                                     ],
-                                    placeholder='Enter number of paths'
+                                    placeholder='Number of paths'
                                 )
                             ],
-                            className='one column'
+                            className='two columns'
                         ),
                         html.Div(
                             [
@@ -278,18 +264,6 @@ def parse_contents(contents, filename, date):
                             ],
                             className='two columns'
                         ),
-						html.Div(
-							[
-								html.Button(
-									id='download-button',
-									children='Download data',
-								),
-								html.Download(
-									id='download-csv'
-								)
-							],
-							className='two columns'
-						)
                     ],
                     className='1 row'
                 ),
@@ -357,7 +331,8 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
                     if current_path[i+1] in nodes: # removing transient nodes
                         if root_path == current_path[:i] and current_path[i+1] in init_graph[current_path[i]]:
                             cost = init_graph[current_path[i]].pop(current_path[i+1])
-                            # init_graph[current_path[i+1]].pop(current_path[i])
+                            if current_path[i] in init_graph[current_path[i+1]]:
+                                init_graph[current_path[i+1]].pop(current_path[i])
                             if cost == -1:
                                 continue
 
@@ -373,7 +348,8 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
 
                                 else:
                                     cost2 = init_graph[previous_path[p0]].pop(previous_path[p1])
-                                    # init_graph[previous_path[p1]].pop(previous_path[p0])
+                                    if previous_path[p0] in init_graph[previous_path[p1]]:
+                                        init_graph[previous_path[p1]].pop(previous_path[p0])
                                     removed_edges.append([previous_path[p0], previous_path[p1], cost2])
 
                             elif current_path[:i] == root_path and previous_path != current_path[:i]:
@@ -406,7 +382,7 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             
             if spur_path['path_']:
                 total_path = root_path + spur_path['path_']
-                total_cost = sp_init[spur_node] + spur_path['cost'] 
+                total_cost = sp_init[spur_node] + spur_path['cost'] #TODO: the issue is shortest path is the oldest version
                 potential_k = {'cost': total_cost, 'path_': total_path}
 
                 if not (potential_k in B):
@@ -428,10 +404,6 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
             B = B[:index]
         else:
             break
-
-		for index, val in enumerate(A):
-			if start_node in val['path_'][1:]:
-				A.pop(index)
 
     return A
 
@@ -514,6 +486,20 @@ def update_data(n, data, format_data):
         for index, value in enumerate(filtered['Destination']):
             init_graph[node][value] = filtered.iloc[index, -1]
 
+        # query_vehicle = [x for x in filtered['Index']]
+
+        # for vehicle in query_vehicle:
+        #     init_graph[node][vehicle] = 1
+
+    # for dstn in dstns:
+    #     filtered = df[df['Tujuan'] == dstn]
+    #     query_vehicle = [x for x in filtered['Index']]
+
+    #     for vehicle in query_vehicle:
+    #         index = query_vehicle.index(vehicle)
+    #         init_graph[vehicle][dstn] = filtered.iloc[index, -1]
+                    
+    # print(init_graph)
     nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
     sources_dict = {i: src[i] for i in range(0,len(src))}
     filtered_data = min_OA.to_dict('records')
@@ -550,57 +536,115 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
         costs[src] = []
         paths[src] = []
 
-        local_graph['Source'].clear()
-
-        local_graph['Source'][src] = 1
+        if src == 'DC CIKARANG' and dest_node in local_graph[src]:
+            ls_comp = [x for x in srcs if 'DC CIKARANG' in local_graph[x]]
+            local_graph['Source'].clear()
+            for node in ls_comp:
+                if node == src:
+                    continue
+                else:
+                    local_graph['Source'][node] = 1
+                    cost_ckr = local_graph[node].pop(src)
+                    local_graph[node].clear()
+                    local_graph[node][src] = cost_ckr
+            
+            A = yen_algorithm(local_graph, nodes, start_node='Source', end_node=dest_node, max_k=num_paths)
+                
+        else:
+            local_graph['Source'].clear()
+            local_graph['Source'][src] = 1
         # local_graph[src]['Source'] = 1
 
-        data_node = [x for x in srcs if src in local_graph[x]]
-        # print(data_node)
-        for node in data_node:
-            # local_graph[src].pop(node)
-            # nodes.remove(node)
-            local_graph[node].pop(src)
+            data_node = [x for x in srcs if src in local_graph[x]]
+            # print(data_node)
+            for node in data_node:
+                # local_graph[src].pop(node)
+                # nodes.remove(node)
+                local_graph[node].pop(src)
 
-		# TODO: might want to change max_k into showing all possible routes
-        A = yen_algorithm(local_graph, nodes, start_node=src, end_node=dest_node, max_k=num_paths)
+            A = yen_algorithm(local_graph, nodes, start_node=src, end_node=dest_node, max_k=num_paths)
 
         for route in A:
             costs[src].append(route['cost'])
             paths[src].append(route['path_'])
-
-
-	singulars = [value for value in A if len(value) == 1]
-	# find all sources where length is = 1
-		# find src + 1 in the list of costs/paths
-		
+        
         # for node in data_node:
         #     nodes.append(node)
 
     src_list = list(costs.keys())
     first_cost = {val: costs[src_list[i]][0] for i, val in enumerate(costs)}
+    all_costs = []
+    # all_costs = {val: costs[src_list[i]][j] for i, val in enumerate(costs) for j in range(len(val))}
+    for i, (val, list_val) in enumerate(costs.items()):
+        for j in range(len(list_val)):
+            all_costs.append([val, list_val[j]])
+
     costs_df = pd.DataFrame(list(first_cost.items()), columns=['Source', 'Value'])
     costs_df.reset_index()
+    costs_all_df = pd.DataFrame(all_costs, columns=['Source', 'Value'])
+    costs_all_df.reset_index()
 
-    # costs2 = costs_df.transpose().reset_index()
     first_path = {val: paths[src_list[i]][0] for i, val in enumerate(paths)}
+    all_paths = []
+    for i, (val, list_val) in enumerate(paths.items()):
+        for j in range(len(list_val)):
+            all_paths.append([val,list_val[j]])
+
     paths_df = pd.DataFrame(list(first_path.items()), columns=['Source', 'Path'])
     paths_df.reset_index()
+    all_paths_df = pd.DataFrame(all_paths, columns=['Source', 'Path'])
+    all_paths_df.reset_index()
 
     # print(costs_df)
     # # print(len(costs_df))
     # print(paths_df)
 
     costs_df['Path'] = paths_df['Path']
-    results = costs_df
+    costs_all_df['Path'] = all_paths_df['Path']
+    results = costs_df.sort_values(by=['Value'])
+    result_all = costs_all_df.sort_values(by=['Value'])
     print(results)
-    df2 = pd.DataFrame(columns=list(df.columns))
-    for value in results['Path']:
+    row = []
+    # print(df2)
+    for value in result_all['Path']:
         for i in range(0,len(value)-1):
-            df = df[(df['Source'] == value[i]) & (df['Destination'] == value[i+1])]
-            pd.concat([df2,df])
-    
-    print(df2)
+            # print(df)
+            val_init = [value]
+            if value[i] == 'Source':
+                continue
+
+            ls = df[(df['Source'] == value[i]) & (df['Destination'] == value[i+1])].values.tolist()
+            flat_list = [item for sublist in ls for item in sublist]
+            if not flat_list:
+                continue
+
+            final = val_init + flat_list
+        
+            print(flat_list)
+            # print(type(df))
+            # print(type(df))
+            row.append(final)
+
+    fin_res = pd.DataFrame(row).astype(str)
+    fin_res.columns = [
+        'Path', 
+        'Tppt', 
+        'Vendor_ID', 
+        'Vendor_Name', 
+        'Route', 
+        'Shipping_Type', 
+        'Shipping_Type_Name',
+        'Kapasitas',
+        'OA',
+        'Source',
+        'Destination',
+        'Index',
+        'OA/M3'
+    ]        
+    print(fin_res)
+    print(type(fin_res))
+    data = fin_res.to_dict('records')
+    # print(df2)   
 
     fig = make_subplots(
         rows=1,
@@ -647,13 +691,17 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
         bargroupgap=0.1,
     )
 
-	# TODO: add piechart to show most used source STO/direct
 
     
-    # print(costs)
-    # print(paths)
+
     return html.Div(
         [
+            html.Div(
+                dash_table.DataTable(
+                    id='result-table',
+                    data=result_all.to_dict('records'),
+                )
+            ),
             html.Div(
                 [
                     dcc.Graph(figure=fig)
@@ -661,29 +709,15 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
             ),
             html.Div(
                 dash_table.DataTable(
-                    df2.to_dict('records'),
-                    [{'name': i, 'id': i} for i in df2.columns]
+                    id='tbl',                    
+                    data=data,
+                    export_format='csv'
+                    # [{'name': str(i), 'id': str(i)} for i in fin_res.columns]
                 )
             )
         ]
     )
 
-@app.callback(
-	Output('download-csv', 'data'),
-	Input('download-button', 'n_clicks'),
-	State(),
-	prevent_initial_callbacks=True
-)
-def download_csv(n, data):
-	#TODO: fix download button
-	return dcc.send_data(data.to_csv(), 'optimal_routes.csv')
-	
 
 if __name__ == '__main__':
     app.run_server(debug=True)
-
-
-#TODO: fix layouts
-#TODO: add loading bars
-#TODO: remove individual node option (even to an entire BIG node), figure out how to affect init_graph
-#TODO: deploy on heroku
