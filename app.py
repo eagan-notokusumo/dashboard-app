@@ -17,7 +17,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import copy
-import flask as Flask
+from flask import Flask
 
 server = Flask(__name__)
 
