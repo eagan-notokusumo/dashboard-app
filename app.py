@@ -17,12 +17,17 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import copy
+import flask as Flask
 
+server = Flask(__name__)
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+app = dash.Dash(server=server, external_stylesheets=external_stylesheets,
                 suppress_callback_exceptions=True)
+app.title = 'new dash app'
+
+server = app.server
 
 app.layout = html.Div([ # this code section taken from Dash docs https://dash.plotly.com/dash-core-components/upload
     # html.Div(
