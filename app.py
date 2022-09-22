@@ -164,7 +164,7 @@ def parse_contents(contents, filename, date):
                                     id='num-paths',
                                     clearable=False,
                                     options=[
-                                        i for i in range(1,5)
+                                        i for i in range(1,6)
                                     ],
                                     placeholder='Enter number of paths'
                                 )
@@ -174,7 +174,7 @@ def parse_contents(contents, filename, date):
                         html.Div(
                             [
                                 html.Button(
-                                    id='data-button',
+                                    id='data-button-product',
                                     children='Generate data'
                                 )
                             ],
@@ -188,19 +188,22 @@ def parse_contents(contents, filename, date):
                     data=df.to_dict('records')
                 ),
                 dcc.Store(
-                    id='source-data',
+                    id='source-data-prod',
                 ),
                 dcc.Store(
-                    id='node-data',
+                    id='node-data-prod',
                 ),
                 dcc.Store(
-                    id='init-graph',
+                    id='init-graph-prod',
                 ),
                 dcc.Store(
                     id='shortest-path'
                 ),
                 dcc.Store(
                     id='previous-nodes'
+                ),
+                dcc.Store(
+                    id='updated-data-prod'
                 )
                 # html.Div('Raw Content'),
                 # html.Pre(
@@ -413,7 +416,7 @@ def yen_algorithm(init_graph, nodes, start_node, end_node, max_k):
         if len(B):
             B = sorted(B, key=itemgetter('cost'))
             for index, val in enumerate(B):
-                if start_node in val['path_'][1:]:
+                if start_node in val['path_'][1:] or val['path_'][1] in val['path_'][2:]:
                     continue
                 A.append(val)
                 break
@@ -465,7 +468,7 @@ def update_data(n, data, format_data):
         'OA': 'mean',
         'Tppt': 'first',
         'Route': 'first',
-        'Route_Name': 'first',
+        'Route': 'first',
         'Shipping_Type_Name': 'first',
     }
 
@@ -475,6 +478,7 @@ def update_data(n, data, format_data):
 
     elif format_data == 'Average Cost':
         groups = df.groupby(['Shipping_Type','Destination'], as_index=False).agg(f)
+        groups['OA/M3'] = groups['OA'].div(groups['Kapasitas'].values).astype(int)
 
     elif format_data == 'Maximum Cost':
         df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
@@ -483,7 +487,8 @@ def update_data(n, data, format_data):
     # min_OA = groups.groupby(['Source', 'Destination'], as_index=False).min()
     min_OA = groups.loc[groups.groupby(['Source', 'Destination'])['OA/M3'].idxmin()]
     min_OA.reset_index()
-    print(min_OA[['OA', 'Kapasitas', 'OA/M3']])
+    print(groups)
+    print(min_OA)
 
     src_init = ['Source']
     src =  [node for node in min_OA['Source'].unique()]
@@ -525,6 +530,97 @@ def update_data(n, data, format_data):
     # print(df)
     return sources_dict, nodes_dict, init_graph, filtered_data
 
+@app.callback(
+    Output('source-data-prod', 'data'),
+    Output('node-data-prod', 'data'),
+    Output('init-graph-prod', 'data'),
+    Output('updated-data-prod', 'data'),
+    Input('data-button-product', 'n_clicks'),
+    State('stored-data', 'data'),
+    State('product-choice', 'value'),
+    State('data-format-choice', 'value')
+)
+def update_data_prod(n, data, prod, format_data):
+    # print(start)
+    # print(format_data)
+    # print(data)
+    if n is None or data is None or format_data is None:
+        raise PreventUpdate
+    
+    df = pd.DataFrame.from_records(data)
+    if any(pd.isnull(df)):
+        df.dropna(inplace=True)
+
+    df = df[df['Product_Code'] == prod]
+    f = {
+        'Source': 'first',
+        'Kapasitas': 'mean',
+        'OA': 'mean',
+        'Tppt': 'first',
+        'Route': 'first',
+        'Route_Name': 'first',
+        'Shipping_Type_Name': 'first',
+    }
+
+    if format_data == 'Minimum Cost':
+        df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
+        groups = df.loc[df.groupby(['Index', 'Destination'])['OA/M3'].idxmin()]
+
+    elif format_data == 'Average Cost':
+        groups = df.groupby(['Shipping_Type','Destination'], as_index=False).agg(f)
+
+    elif format_data == 'Maximum Cost':
+        df['OA/M3'] = df['OA'].div(df['Kapasitas'].values).astype(int)
+        groups = df.groupby(['Index','Destination'], as_index=False).max()
+
+    # min_OA = groups.groupby(['Source', 'Destination'], as_index=False).min()
+    min_OA = groups.loc[groups.groupby(['Source', 'Destination'])['OA/M3'].idxmin()]
+    min_OA.reset_index()
+    # print(min_OA[['OA', 'Kapasitas', 'OA/M3']])
+    # print(groups)
+    print(min_OA)
+
+    src_init = ['Source']
+    src =  [node for node in min_OA['Source'].unique()]
+    # vehicles = [node for node in df['Index']]
+    dstns = [node for node in min_OA['Destination'].unique()]
+    nodes = src_init + src + dstns
+
+    init_graph = {}
+    for node in nodes:
+        init_graph[node] = {}
+
+    for node in src:
+        filtered = min_OA[min_OA['Source'] == node]
+        init_graph[nodes[0]][node] = 1
+
+        for index, value in enumerate(filtered['Destination']):
+            init_graph[node][value] = filtered.iloc[index, -1]
+
+        # query_vehicle = [x for x in filtered['Index']]
+
+        # for vehicle in query_vehicle:
+        #     init_graph[node][vehicle] = 1
+
+    # for dstn in dstns:
+    #     filtered = df[df['Tujuan'] == dstn]
+    #     query_vehicle = [x for x in filtered['Index']]
+
+    #     for vehicle in query_vehicle:
+    #         index = query_vehicle.index(vehicle)
+    #         init_graph[vehicle][dstn] = filtered.iloc[index, -1]
+                    
+    # print(init_graph)
+    nodes_dict = {i: nodes[i] for i in range(0,len(nodes))}
+    sources_dict = {i: src[i] for i in range(0,len(src))}
+    filtered_data = min_OA.to_dict('records')
+    print(filtered_data)
+
+    #TODO: change output-table
+
+    # print(df)
+    return sources_dict, nodes_dict, init_graph, filtered_data
+
 # TODO: algorithm callback
 @app.callback(
     Output('output-algorithm', 'children'),
@@ -552,8 +648,9 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
         costs[src] = []
         paths[src] = []
 
-        if src == 'DC CIKARANG':
-            continue
+        #TODO: change DC CIKARANG/to general 
+        # if src == 'DC CIKARANG':
+        #     continue
             # ls_comp = [x for x in srcs if 'DC CIKARANG' in local_graph[x]]
             # local_graph['Source'].clear()
             # for node in ls_comp:
@@ -567,19 +664,19 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
             
             # A = yen_algorithm(local_graph, nodes, start_node='Source', end_node=dest_node, max_k=num_paths)
                 
-        else:
-            local_graph['Source'].clear()
-            local_graph['Source'][src] = 1
-        # local_graph[src]['Source'] = 1
 
-            data_node = [x for x in srcs if src in local_graph[x]]
-            # print(data_node)
-            for node in data_node:
-                # local_graph[src].pop(node)
-                # nodes.remove(node)
-                local_graph[node].pop(src)
+        local_graph['Source'].clear()
+        local_graph['Source'][src] = 1
+    # local_graph[src]['Source'] = 1
 
-            A = yen_algorithm(local_graph, nodes, start_node=src, end_node=dest_node, max_k=num_paths)
+        data_node = [x for x in srcs if src in local_graph[x]]
+        # print(data_node)
+        for node in data_node:
+            # local_graph[src].pop(node)
+            # nodes.remove(node)
+            local_graph[node].pop(src)
+
+        A = yen_algorithm(local_graph, nodes, start_node=src, end_node=dest_node, max_k=num_paths)
 
         for route in A:
             costs[src].append(route['cost'])
@@ -609,12 +706,13 @@ def algorithm(n, node_data, graph_data, num_paths, dest_node, source_data, updat
     costs_all_df = costs_all_df.sort_values(by=['Value'])
 
     result_all = pd.DataFrame(costs_all_df)
-    ckr = result_all[result_all['Path'].astype(str).str.contains('DC CIKARANG')].reset_index()
-    # print(ckr)
-    # print(costs)
+    
+    # ckr = result_all[result_all['Path'].astype(str).str.contains('DC CIKARANG')].reset_index()
+    # # print(ckr)
+    # # print(costs)
 
-    costs['DC CIKARANG'] = [x for x in ckr['Value']]
-    paths['DC CIKARANG'] = [x for x in ckr['Path']]
+    # costs['DC CIKARANG'] = [x for x in ckr['Value']]
+    # paths['DC CIKARANG'] = [x for x in ckr['Path']]
     first_cost = {val: costs[src_list[i]][0] for i, val in enumerate(costs)}
     first_path = {val: paths[src_list[i]][0] for i, val in enumerate(paths)}
 
@@ -796,4 +894,8 @@ if __name__ == '__main__':
 
 #TODO: fix DC CIKARANG STO issues
 #TODO: limit excel output
-#TODO: 
+#TODO: change source to be more flexible
+#TODO: add code to be able to adjust for product code
+#TODO: add logs
+#TODO: add cases where some data does not show
+#TODO: reconfigure the web config to add logs
