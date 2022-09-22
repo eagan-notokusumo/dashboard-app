@@ -17,12 +17,17 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import copy
+from flask import Flask
 
+server = Flask(__name__)
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+app = dash.Dash(server=server, external_stylesheets=external_stylesheets,
                 suppress_callback_exceptions=True)
+app.title = 'new dash app'
+
+server = app.server
 
 app.layout = html.Div([ # this code section taken from Dash docs https://dash.plotly.com/dash-core-components/upload
     # html.Div(
@@ -894,8 +899,12 @@ if __name__ == '__main__':
 
 #TODO: fix DC CIKARANG STO issues
 #TODO: limit excel output
+<<<<<<< HEAD
 #TODO: change source to be more flexible
 #TODO: add code to be able to adjust for product code
 #TODO: add logs
 #TODO: add cases where some data does not show
 #TODO: reconfigure the web config to add logs
+=======
+#TODO: 
+>>>>>>> 79f9fa59581ae4b283da243d5e98c475b0b402ea
